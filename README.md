@@ -7,7 +7,8 @@ DugOut is an interactive, real-time social platform designed for cricket fans. I
 ## 🚀 Key Features
 
 ### 1. 🤖 System A: AI Stats Companion ("Duggy")
-*   **Local Open-Source AI**: Queries a local **Ollama** instance running `llava:latest` to generate energetic, emoji-rich cricket analytics.
+*   **Local Open-Source AI**: Queries a local **Ollama** instance running `llava:latest` to generate energetic, emoji-rich cricket analytics during development.
+*   **Production Multilingual Foundation**: Built for enterprise scaling with comprehensive **multilingual understanding** (supporting Hinglish, Hindi, Telugu, Tamil, and other regional languages) by routing requests to larger production-grade models (Hugging Face / Gemini Pro).
 *   **Real-time RAG Pipeline**: Leverages **Tavily Web Search** and **Pinecone Vector Database** to merge live cricket news, match thread banter, and local database statistics.
 *   **Bypassed Anchoring Bias**: Implements dynamic context separation to prevent the local model from being confused by mock simulator scores when asked about general global cricket tournaments.
 
@@ -37,7 +38,7 @@ DugOut is an interactive, real-time social platform designed for cricket fans. I
 *   **Real-time Comms**: WebSockets (Asyncio-driven multi-room connection loops)
 *   **State Management**: Unified abstract state manager supporting local InMemory fallback and production-ready **Redis Clustered Pub/Sub**.
 *   **Frontend**: Vanilla HTML5, CSS3, JavaScript (responsive layouts, glassmorphism UI, vector SVG path transitions).
-*   **AI Engine**: Ollama (`llava:latest`), Hugging Face Inference API, Google Gemini Pro.
+*   **AI Engine**: Ollama (`llava:latest` for local prototyping); Hugging Face Inference API & Google Gemini Pro (production engines supporting advanced multilingual and Hinglish reasoning).
 *   **Search/Retrieval**: Tavily API, Pinecone Client.
 
 ---
