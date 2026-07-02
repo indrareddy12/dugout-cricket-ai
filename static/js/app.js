@@ -1,0 +1,592 @@
+// --- Application State ---
+let username = "Fanatic_99";
+let userTeam = "neutral";
+let activeStand = "neutral";
+let socket = null;
+let aiSocket = null;
+let currentOver = 17.2;
+
+// --- DOM References ---
+const chatMessages = document.getElementById("chat-messages");
+const messageInput = document.getElementById("chat-message-input");
+const scoreText = document.getElementById("score-text");
+const oversText = document.getElementById("overs-text");
+const strikerText = document.getElementById("striker-text");
+const bowlerText = document.getElementById("bowler-text");
+const recentBallsList = document.getElementById("recent-balls-list");
+const threadsList = document.getElementById("threads-list");
+const duggyMessages = document.getElementById("duggy-messages");
+const duggyInput = document.getElementById("duggy-query-input");
+const moderatorLogs = document.getElementById("moderator-logs");
+
+// DRS references
+const drsOverlay = document.getElementById("drs-overlay-container");
+const drsTimerText = document.getElementById("drs-timer-text");
+const drsAppealDesc = document.getElementById("drs-appeal-desc");
+const drsBarOut = document.getElementById("drs-bar-out");
+const drsBarNotOut = document.getElementById("drs-bar-notout");
+
+// --- Profile Modal Setup ---
+function selectProfileTeam(team) {
+    document.querySelectorAll(".team-select-btn").forEach(btn => btn.classList.remove("active"));
+    document.querySelector(`.team-select-btn.${team}`).classList.add("active");
+    userTeam = team;
+}
+
+function saveProfile() {
+    const inputName = document.getElementById("username-input").value.strip ? 
+                      document.getElementById("username-input").value.strip() : 
+                      document.getElementById("username-input").value.trim();
+    if (inputName) {
+        username = inputName;
+    }
+    document.getElementById("profile-modal").style.display = "none";
+    
+    // Automatically match stand to favorite team or default to neutral
+    activeStand = userTeam;
+    document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+    document.getElementById(`tab-${activeStand}`).classList.add("active");
+    
+    initStadiumMap();
+    connectWebSocket(activeStand);
+    connectAIWebSocket();
+}
+
+// --- WebSocket Management ---
+function connectWebSocket(standId) {
+    if (socket) {
+        socket.close();
+    }
+    
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.host;
+    socket = new WebSocket(`${protocol}//${host}/ws/chat/${standId}`);
+    
+    socket.onopen = () => {
+        console.log(`WebSocket connected to stand: ${standId}`);
+        // Clear chat container
+        chatMessages.innerHTML = "";
+        appendSystemMessage(`Joined the ${standId.toUpperCase()} Stand chatroom.`);
+    };
+    
+    socket.onmessage = (event) => {
+        const data = jsonParse(event.data);
+        if (!data) return;
+        
+        switch (data.type) {
+            case "init":
+                // Load scorecard
+                updateScorecardUI(data.scorecard);
+                // Load threads
+                renderThreads(data.threads);
+                // Load DRS if active
+                handleDRSState(data.drs);
+                // Load moderator logs
+                renderModeratorLogs(data.moderator_logs);
+                if (data.fan_counts) {
+                    updateFanCounts(data.fan_counts);
+                }
+                break;
+                
+            case "message":
+                appendChatMessage(data.message);
+                break;
+                
+            case "scorecard":
+                updateScorecardUI(data.scorecard);
+                break;
+                
+            case "new_thread":
+                appendThreadCard(data.thread, true);
+                break;
+                
+            case "drs_trigger":
+                triggerDRSView(data.drs);
+                break;
+                
+            case "drs_tick":
+                drsTimerText.innerText = `${data.time_remaining}s`;
+                break;
+                
+            case "drs_vote_update":
+                updateDRSMeter(data.votes_out, data.votes_not_out);
+                break;
+                
+            case "drs_resolved":
+                resolveDRSView(data.drs, data.thread);
+                break;
+                
+            case "moderator_log":
+                appendModeratorLog(data.log);
+                break;
+                
+            case "fan_counts":
+                updateFanCounts(data.counts);
+                break;
+        }
+    };
+    
+    socket.onclose = () => {
+        console.log("WebSocket disconnected.");
+    };
+}
+
+function switchStand(standId) {
+    activeStand = standId;
+    document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+    document.getElementById(`tab-${standId}`).classList.add("active");
+    updateStadiumActiveHighlight(standId);
+    connectWebSocket(standId);
+}
+
+// --- Chat Functions ---
+function sendChatMessage() {
+    const text = messageInput.value.trim();
+    if (!text || !socket) return;
+    
+    socket.send(JSON.stringify({
+        sender: username,
+        message: text,
+        team: userTeam
+    }));
+    
+    messageInput.value = "";
+}
+
+function handleChatSubmit(event) {
+    if (event.key === "Enter") {
+        sendChatMessage();
+    }
+}
+
+function appendChatMessage(msg) {
+    const isMe = msg.sender === username;
+    const bubble = document.createElement("div");
+    bubble.className = `chat-bubble team-${msg.team} ${isMe ? 'me' : ''}`;
+    
+    bubble.innerHTML = `
+        <span class="sender">${msg.sender}</span>
+        <span class="msg-text">${escapeHTML(msg.message)}</span>
+        <span class="timestamp">${msg.timestamp}</span>
+    `;
+    
+    chatMessages.appendChild(bubble);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function appendSystemMessage(text) {
+    const container = document.createElement("div");
+    container.style.textAlign = "center";
+    container.style.fontSize = "11px";
+    container.style.color = "var(--text-muted)";
+    container.style.margin = "8px 0";
+    container.innerText = text;
+    chatMessages.appendChild(container);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// --- Scorecard UI Updates ---
+function updateScorecardUI(scoreData) {
+    scoreText.innerText = `${scoreData.runs}/${scoreData.wickets}`;
+    oversText.innerText = `(${scoreData.overs} Overs)`;
+    strikerText.innerText = scoreData.batsman_striker;
+    bowlerText.innerText = scoreData.bowler_active;
+    currentOver = parseFloat(scoreData.overs);
+    
+    // Excitement bars
+    document.getElementById("pulse-csk").style.width = `${scoreData.excitement_csk}%`;
+    document.getElementById("pulse-csk").innerText = `${scoreData.excitement_csk}%`;
+    document.getElementById("pulse-mi").style.width = `${scoreData.excitement_mi}%`;
+    document.getElementById("pulse-mi").innerText = `${scoreData.excitement_mi}%`;
+    
+    // Ball tray
+    recentBallsList.innerHTML = "";
+    scoreData.recent_balls.forEach(ball => {
+        const ballSpan = document.createElement("span");
+        ballSpan.className = "ball";
+        if (ball === "W") {
+            ballSpan.classList.add("runs-w");
+        } else if (ball === "4") {
+            ballSpan.classList.add("runs-4");
+        } else if (ball === "6") {
+            ballSpan.classList.add("runs-6");
+        }
+        ballSpan.innerText = ball;
+        recentBallsList.appendChild(ballSpan);
+    });
+}
+
+// --- Event Threads Rendering ---
+function renderThreads(threads) {
+    threadsList.innerHTML = "";
+    if (threads.length === 0) {
+        threadsList.innerHTML = `<p class="no-logs">No match threads created yet.</p>`;
+        return;
+    }
+    threads.forEach(thread => appendThreadCard(thread, false));
+}
+
+function appendThreadCard(thread, isNew = false) {
+    // Remove "no threads" placeholder if it exists
+    const placeholder = threadsList.querySelector(".no-logs");
+    if (placeholder) {
+        threadsList.innerHTML = "";
+    }
+    
+    const card = document.createElement("div");
+    card.className = "thread-card";
+    
+    // Highlight class based on type
+    if (thread.event_type === "wicket") {
+        card.classList.add("highlight-wicket");
+    } else if (thread.event_type === "boundary") {
+        card.classList.add("highlight-boundary");
+    } else if (thread.event_type.startsWith("drs")) {
+        card.classList.add("highlight-drs");
+    }
+    
+    card.innerHTML = `
+        <div class="thread-meta">
+            <span class="over-badge">Over ${thread.over}</span>
+            <span>${thread.timestamp}</span>
+        </div>
+        <h4>${escapeHTML(thread.title)}</h4>
+        <p>${escapeHTML(thread.description)}</p>
+    `;
+    
+    if (isNew) {
+        threadsList.insertBefore(card, threadsList.firstChild);
+        card.style.animation = "glow-pulse 2s ease";
+    } else {
+        threadsList.appendChild(card);
+    }
+}
+
+// --- DRS UI Panel Management ---
+function handleDRSState(drs) {
+    if (drs.is_active) {
+        triggerDRSView(drs);
+        updateDRSMeter(drs.votes_out, drs.votes_not_out);
+    } else {
+        drsOverlay.classList.add("hidden");
+    }
+}
+
+function triggerDRSView(drs) {
+    drsAppealDesc.innerHTML = `Over ${drs.over}: LBW appeal on <strong>${drs.batsman}</strong> bowler by <strong>${drs.bowler}</strong>. The match is paused for third umpire review. Crowd votes are locked in 15 seconds!`;
+    drsTimerText.innerText = `${drs.time_remaining}s`;
+    
+    // Reset buttons
+    document.querySelectorAll(".drs-vote-btn").forEach(btn => {
+        btn.disabled = false;
+        btn.style.opacity = "1";
+    });
+    
+    updateDRSMeter(0, 0);
+    drsOverlay.classList.remove("hidden");
+}
+
+function updateDRSMeter(outVotes, notOutVotes) {
+    const total = outVotes + notOutVotes;
+    if (total === 0) {
+        drsBarOut.style.width = "50%";
+        drsBarOut.innerText = "OUT (50%)";
+        drsBarNotOut.style.width = "50%";
+        drsBarNotOut.innerText = "NOT OUT (50%)";
+        return;
+    }
+    
+    const outPct = Math.round((outVotes / total) * 100);
+    const notOutPct = 100 - outPct;
+    
+    drsBarOut.style.width = `${outPct}%`;
+    drsBarOut.innerText = `OUT (${outPct}%)`;
+    drsBarNotOut.style.width = `${notOutPct}%`;
+    drsBarNotOut.innerText = `NOT OUT (${notOutPct}%)`;
+}
+
+function voteDRS(vote) {
+    // Disable buttons
+    document.querySelectorAll(".drs-vote-btn").forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = "0.5";
+    });
+    
+    fetch("/api/drs/vote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vote: vote })
+    })
+    .then(res => res.json())
+    .catch(err => console.error("Error casting DRS vote:", err));
+}
+
+function resolveDRSView(drs, thread) {
+    // Flash the official verdict on the screen shortly before hiding
+    const verdictColor = drs.official_verdict === "OUT" ? "var(--accent-red)" : "var(--primary-green)";
+    drsAppealDesc.innerHTML = `<span style="font-size: 16px; font-weight: 700; color: ${verdictColor}">OFFICIAL VERDICT: ${drs.official_verdict}</span>`;
+    
+    setTimeout(() => {
+        drsOverlay.classList.add("hidden");
+        // Inject thread
+        appendThreadCard(thread, true);
+    }, 2000);
+}
+
+// --- Duggy Chatbot (System A) ---
+function connectAIWebSocket() {
+    if (aiSocket) {
+        aiSocket.close();
+    }
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = window.location.host;
+    // Create a unique dummy user_id for the isolated connection
+    const userId = username + "_" + Math.floor(Math.random() * 1000);
+    aiSocket = new WebSocket(`${protocol}//${host}/ws/chat/ai/${userId}`);
+    
+    aiSocket.onopen = () => {
+        console.log("Duggy AI WebSocket connected.");
+        document.querySelector(".duggy-input-bar input").placeholder = "Ask Duggy a question...";
+    };
+    
+    let currentBotMessageBubble = null;
+    let currentTextBuffer = "";
+
+    aiSocket.onmessage = (event) => {
+        const textChunk = event.data;
+        
+        // Check for completion signal
+        if (textChunk === "[DONE]") {
+            currentBotMessageBubble = null;
+            return;
+        }
+
+        // Remove typing indicator if present
+        document.querySelector(".typing-indicator")?.remove();
+
+        // Create new bubble if it's the start of a response
+        if (!currentBotMessageBubble) {
+            const bubble = document.createElement("div");
+            bubble.className = `duggy-msg bot`;
+            bubble.innerHTML = `<div class="text content-area"></div>`;
+            duggyMessages.appendChild(bubble);
+            currentBotMessageBubble = bubble.querySelector(".content-area");
+            currentTextBuffer = "";
+        }
+
+        currentTextBuffer += textChunk;
+        currentBotMessageBubble.innerHTML = formatDuggyResponse(currentTextBuffer);
+        duggyMessages.scrollTop = duggyMessages.scrollHeight;
+    };
+    
+    aiSocket.onclose = () => {
+        console.log("Duggy AI WebSocket disconnected. Attempting to reconnect in 5s...");
+        setTimeout(connectAIWebSocket, 5000);
+    };
+}
+
+function submitDuggyQuery() {
+    const text = duggyInput.value.trim();
+    if (!text) return;
+    
+    if (!aiSocket || aiSocket.readyState !== WebSocket.OPEN) {
+        alert("Duggy is currently offline. Please wait for reconnection.");
+        return;
+    }
+    
+    appendDuggyMessage("user", text);
+    duggyInput.value = "";
+    
+    // Add typing indicator
+    const typingBubble = document.createElement("div");
+    typingBubble.className = "duggy-msg bot typing-indicator";
+    typingBubble.innerHTML = `<div class="text"><i class="fa-solid fa-circle-notch fa-spin"></i> Duggy is thinking...</div>`;
+    duggyMessages.appendChild(typingBubble);
+    duggyMessages.scrollTop = duggyMessages.scrollHeight;
+    
+    // Send over WebSocket
+    aiSocket.send(JSON.stringify({ query: text }));
+}
+
+function quickQuery(queryText) {
+    duggyInput.value = queryText;
+    submitDuggyQuery();
+}
+
+function handleDuggySubmit(event) {
+    if (event.key === "Enter") {
+        submitDuggyQuery();
+    }
+}
+
+function appendDuggyMessage(sender, text) {
+    const bubble = document.createElement("div");
+    bubble.className = `duggy-msg ${sender}`;
+    bubble.innerHTML = `<div class="text content-area">${formatDuggyResponse(text)}</div>`;
+    duggyMessages.appendChild(bubble);
+    duggyMessages.scrollTop = duggyMessages.scrollHeight;
+}
+
+// Format markdown bold/bullet indicators in Duggy bot responses
+function formatDuggyResponse(text) {
+    let formatted = text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/- (.*?)\n/g, '• $1<br>')
+        .replace(/\n/g, '<br>');
+    return formatted;
+}
+
+// --- Live Match Simulator Panel ---
+function simulateBall(runs, eventType, description) {
+    // Generate next over value
+    let nextOver = parseFloat((currentOver + 0.1).toFixed(1));
+    if (Math.round((nextOver % 1) * 10) >= 6) {
+        nextOver = Math.round(nextOver) + 0.0;
+    }
+    
+    // Choose typical batsman / bowler based on simulator
+    const batsmen = ["MS Dhoni", "Ruturaj Gaikwad", "Ravindra Jadeja"];
+    const bowlers = ["Jasprit Bumrah", "Hardik Pandya", "Gerald Coetzee"];
+    
+    const randomBatsman = batsmen[Math.floor(Math.random() * batsmen.length)];
+    const randomBowler = bowlers[Math.floor(Math.random() * bowlers.length)];
+    
+    const payload = {
+        over: nextOver.toFixed(1),
+        runs: runs,
+        event_type: eventType,
+        batsman: randomBatsman,
+        bowler: randomBowler,
+        description: description
+    };
+    
+    fetch("/api/match/ball", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log("Simulated ball event:", payload);
+    })
+    .catch(err => console.error("Error simulating ball:", err));
+}
+
+// --- Moderation Logs Panel ---
+function renderModeratorLogs(logs) {
+    moderatorLogs.innerHTML = "";
+    if (logs.length === 0) {
+        moderatorLogs.innerHTML = `<p class="no-logs">No toxic comments blocked yet. Try sending bad words in chat to test the filter.</p>`;
+        return;
+    }
+    logs.forEach(log => appendModeratorLog(log));
+}
+
+function appendModeratorLog(log) {
+    // Remove placeholder
+    const placeholder = moderatorLogs.querySelector(".no-logs");
+    if (placeholder) {
+        moderatorLogs.innerHTML = "";
+    }
+    
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    entry.innerHTML = `
+        <div class="log-meta">
+            <span>BLOCKED SENDER: ${escapeHTML(log.sender)}</span>
+            <span>${log.timestamp}</span>
+        </div>
+        <div class="log-text">"${escapeHTML(log.original_message)}"</div>
+        <div class="log-reason"><i class="fa-solid fa-triangle-exclamation"></i> Reason: ${escapeHTML(log.reason)}</div>
+    `;
+    
+    moderatorLogs.insertBefore(entry, moderatorLogs.firstChild);
+}
+
+// --- Virtual Stadium Map Controls ---
+function initStadiumMap() {
+    const sectors = {
+        csk: document.getElementById("stadium-sector-csk"),
+        mi: document.getElementById("stadium-sector-mi"),
+        neutral: document.getElementById("stadium-sector-neutral")
+    };
+    
+    const tooltip = document.getElementById("stadium-tooltip");
+    
+    // Highlight the active sector initially
+    updateStadiumActiveHighlight(activeStand);
+
+    Object.keys(sectors).forEach(key => {
+        const sector = sectors[key];
+        if (!sector) return;
+        
+        sector.addEventListener("mouseenter", (e) => {
+            const counts = window.fanCounts || { csk: 12, mi: 8, neutral: 5 };
+            const count = counts[key];
+            const name = key.toUpperCase() + " STAND";
+            if (tooltip) {
+                tooltip.innerText = `${name} (${count} active fans)`;
+                tooltip.classList.add("visible");
+            }
+        });
+        
+        sector.addEventListener("mouseleave", () => {
+            if (tooltip) tooltip.classList.remove("visible");
+        });
+    });
+}
+
+function updateStadiumActiveHighlight(standId) {
+    document.querySelectorAll(".stadium-sector").forEach(el => el.classList.remove("active"));
+    const activeEl = document.getElementById(`stadium-sector-${standId}`);
+    if (activeEl) {
+        activeEl.classList.add("active");
+    }
+}
+
+function updateFanCounts(counts) {
+    if (!counts) return;
+    
+    // Update individual stand buttons
+    const cskBtn = document.getElementById("tab-csk");
+    const miBtn = document.getElementById("tab-mi");
+    const neutralBtn = document.getElementById("tab-neutral");
+    
+    if (cskBtn) cskBtn.innerHTML = `<i class="fa-solid fa-flag csk-color"></i> CSK Stand (${counts.csk})`;
+    if (miBtn) miBtn.innerHTML = `<i class="fa-solid fa-flag mi-color"></i> MI Stand (${counts.mi})`;
+    if (neutralBtn) neutralBtn.innerHTML = `<i class="fa-solid fa-comments"></i> Neutral Stand (${counts.neutral})`;
+    
+    // Save counts on window so hover handler can read them
+    window.fanCounts = counts;
+    
+    // Update total count in header
+    const total = (counts.csk || 0) + (counts.mi || 0) + (counts.neutral || 0);
+    const totalText = document.getElementById("fan-total-text");
+    if (totalText) {
+        totalText.innerText = `${total} fans active`;
+    }
+}
+
+// --- Helper Functions ---
+function escapeHTML(str) {
+    if (!str) return "";
+    return str.replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
+}
+
+function jsonParse(str) {
+    try {
+        return JSON.parse(str);
+    } catch (e) {
+        console.error("JSON Parse Error:", e);
+        return null;
+    }
+}

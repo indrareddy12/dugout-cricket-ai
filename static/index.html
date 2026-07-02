@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DugOut - The Interactive Cricket Social Network</title>
+    <!-- Google Fonts: Outfit (modern titles), JetBrains Mono (scores), Inter (body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <!-- App Container -->
+    <div class="app-container">
+        
+        <!-- HEADER STRIP -->
+        <header class="app-header">
+            <div class="brand">
+                <span class="logo-icon"><i class="fa-solid fa-users-rays"></i></span>
+                <h1>DugOut</h1>
+                <span class="badge live-badge">LIVE</span>
+            </div>
+            <div class="scorecard-strip" id="scorecard-strip">
+                <div class="match-teams">
+                    <span class="team csk-color">CSK</span>
+                    <span class="vs">vs</span>
+                    <span class="team mi-color">MI</span>
+                </div>
+                <div class="match-score">
+                    <span class="score" id="score-text">164/4</span>
+                    <span class="overs" id="overs-text">(17.2 Overs)</span>
+                </div>
+                <div class="match-details">
+                    <span class="detail-label" id="striker-text">Ruturaj: 76*(42)</span>
+                    <span class="detail-label" id="bowler-text">Bumrah: 3.2-0-28-2</span>
+                </div>
+                <div class="recent-balls" id="recent-balls-list">
+                    <span class="ball runs-4">4</span>
+                    <span class="ball runs-0">0</span>
+                    <span class="ball runs-6">6</span>
+                    <span class="ball runs-w">W</span>
+                    <span class="ball">1</span>
+                    <span class="ball">2</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="app-layout">
+            
+            <!-- LEFT COLUMN: MOMENT TIMELINE & EXCITEMENT -->
+            <section class="layout-panel left-panel">
+                <h2 class="panel-title"><i class="fa-solid fa-chart-line text-green"></i> Live Match Pulse</h2>
+                
+                <!-- FAN PULSE (SENTIMENT METER) -->
+                <div class="excitement-container">
+                    <div class="pulse-header">
+                        <span>CSK Fans</span>
+                        <span>MI Fans</span>
+                    </div>
+                    <div class="pulse-bar-wrapper">
+                        <div class="pulse-bar csk-bar" id="pulse-csk" style="width: 62%;">62%</div>
+                        <div class="pulse-bar mi-bar" id="pulse-mi" style="width: 38%;">38%</div>
+                    </div>
+                    <p class="pulse-subtext">Aggregated excitement levels based on chat sentiment (System B)</p>
+                </div>
+
+                <div class="timeline-header">
+                    <h3><i class="fa-solid fa-scroll"></i> Match Event Threads</h3>
+                    <span class="subtext">Auto-generated (System F)</span>
+                </div>
+                
+                <!-- MOMENT THREADS LIST -->
+                <div class="threads-timeline" id="threads-list">
+                    <!-- Dynamic Threads load here -->
+                    <div class="loading-placeholder">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> Loading match timeline...
+                    </div>
+                </div>
+            </section>
+
+            <!-- CENTER COLUMN: SOCIAL STANDS & CHAT -->
+            <section class="layout-panel center-panel">
+                <!-- STANDS TABS -->
+                <div class="stands-tabs">
+                    <button class="tab-btn active" onclick="switchStand('neutral')" id="tab-neutral">
+                        <i class="fa-solid fa-comments"></i> Neutral Stand
+                    </button>
+                    <button class="tab-btn" onclick="switchStand('csk')" id="tab-csk">
+                        <i class="fa-solid fa-flag csk-color"></i> CSK Stand
+                    </button>
+                    <button class="tab-btn" onclick="switchStand('mi')" id="tab-mi">
+                        <i class="fa-solid fa-flag mi-color"></i> MI Stand
+                    </button>
+                </div>
+                <!-- VIRTUAL STADIUM DECK -->
+                <div class="stadium-card">
+                    <div class="stadium-header">
+                        <span><i class="fa-solid fa-stadium"></i> VIRTUAL STADIUM MAP</span>
+                        <span class="fan-total-badge" id="fan-total-text">25 fans active</span>
+                    </div>
+                    <div class="stadium-map-wrapper">
+                        <svg class="stadium-svg" viewBox="0 0 400 180" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Left crescent (CSK Stand) -->
+                            <path id="stadium-sector-csk" class="stadium-sector csk" d="M 200,10 A 180 80 0 0 0 200,170 L 200,140 A 140 50 0 0 1 200,40 Z" onclick="switchStand('csk')" />
+                            <!-- Right crescent (MI Stand) -->
+                            <path id="stadium-sector-mi" class="stadium-sector mi" d="M 200,10 A 180 80 0 0 1 200,170 L 200,140 A 140 50 0 0 0 200,40 Z" onclick="switchStand('mi')" />
+                            <!-- Outfield & Pitch (Neutral Stand) -->
+                            <ellipse id="stadium-sector-neutral" class="stadium-sector neutral" cx="200" cy="90" rx="135" ry="46" onclick="switchStand('neutral')" />
+                            
+                            <!-- Pitch decoration -->
+                            <rect class="stadium-pitch" x="193" y="75" width="14" height="30" rx="1" />
+                            <line class="pitch-crease" x1="193" y1="80" x2="207" y2="80" />
+                            <line class="pitch-crease" x1="193" y1="100" x2="207" y2="100" />
+                            
+                            <!-- Overlay Text labels -->
+                            <text class="sector-label" x="85" y="96">CSK STAND</text>
+                            <text class="sector-label" x="315" y="96">MI STAND</text>
+                            <text class="sector-label" x="200" y="122">NEUTRAL STAND</text>
+                        </svg>
+                        <div class="stadium-tooltip" id="stadium-tooltip">Hover over a stand</div>
+                    </div>
+                </div>
+
+                <!-- CHAT DISPLAY CONTAINER -->
+                <div class="chat-viewport">
+                    <!-- DRS VOTING WIDGET (OVERLAY IN CHAT) -->
+                    <div class="drs-overlay hidden" id="drs-overlay-container">
+                        <div class="drs-card">
+                            <div class="drs-header">
+                                <span class="drs-pulse"><i class="fa-solid fa-circle"></i> DRS REVIEW</span>
+                                <span class="drs-timer" id="drs-timer-text">15s</span>
+                            </div>
+                            <h3>Third Umpire Referral! LBW Appeal</h3>
+                            <p id="drs-appeal-desc">Batsman faces ball. The fielding team is appealing!</p>
+                            <div class="drs-votes-meter">
+                                <div class="vote-split-bar">
+                                    <div class="vote-split out" id="drs-bar-out" style="width: 50%;">OUT (50%)</div>
+                                    <div class="vote-split not-out" id="drs-bar-notout" style="width: 50%;">NOT OUT (50%)</div>
+                                </div>
+                            </div>
+                            <div class="drs-actions">
+                                <button class="drs-vote-btn out" onclick="voteDRS('OUT')">
+                                    <i class="fa-solid fa-gavel"></i> OUT
+                                </button>
+                                <button class="drs-vote-btn not-out" onclick="voteDRS('NOT_OUT')">
+                                    <i class="fa-solid fa-circle-check"></i> NOT OUT
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MESSAGES LIST -->
+                    <div class="messages-list" id="chat-messages">
+                        <!-- Messages dynamic load -->
+                    </div>
+                </div>
+
+                <!-- CHAT INPUT -->
+                <div class="chat-input-bar">
+                    <input type="text" id="chat-message-input" placeholder="Join the fan banter..." onkeydown="handleChatSubmit(event)">
+                    <button id="send-btn" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN: DUGGY CHATBOT & MATCH CONTROLLER -->
+            <section class="layout-panel right-panel">
+                
+                <!-- DUGGY CHATBOT PANEL -->
+                <div class="companion-deck">
+                    <h2 class="panel-title"><i class="fa-solid fa-robot text-green"></i> Ask Duggy (System A)</h2>
+                    <div class="duggy-chat-box">
+                        <div class="duggy-messages" id="duggy-messages">
+                            <div class="duggy-msg bot">
+                                <div class="text">
+                                    🤖 Hey there! I'm <strong>Duggy</strong>, your live stats companion. Ask me anything about tonight's match, pitch conditions, or player matchups!
+                                </div>
+                            </div>
+                        </div>
+                        <div class="duggy-quick-actions">
+                            <button onclick="quickQuery('Compare Dhoni vs spin')">Dhoni vs Spin</button>
+                            <button onclick="quickQuery('What is Kohli\'s SR vs Bumrah?')">Kohli vs Bumrah</button>
+                            <button onclick="quickQuery('Compare Rohit vs Starc')">Rohit vs Starc</button>
+                        </div>
+                        <div class="duggy-input-bar">
+                            <input type="text" id="duggy-query-input" placeholder="e.g. Kohli average vs pace..." onkeydown="handleDuggySubmit(event)">
+                            <button onclick="submitDuggyQuery()"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MOCK MATCH CONTROLLER (FOR DEMO) -->
+                <div class="control-deck">
+                    <h2 class="panel-title"><i class="fa-solid fa-gamepad text-orange"></i> Match Simulator Deck</h2>
+                    <p class="section-desc">Simulate live ball events in real-time to trigger the AI Thread Generator, DRS vote panel, and scorecard updates:</p>
+                    <div class="sim-controls">
+                        <button class="sim-btn dot" onclick="simulateBall(0, 'normal', 'Dot ball. Good defensive stroke.')">Dot Ball</button>
+                        <button class="sim-btn single" onclick="simulateBall(1, 'normal', 'Driven down to long-on for a single.')">Single</button>
+                        <button class="sim-btn boundary-4" onclick="simulateBall(4, 'boundary', 'CRACK! Pitched short, pulled away fine for a boundary!')">4 runs</button>
+                        <button class="sim-btn boundary-6" onclick="simulateBall(6, 'boundary', 'MONSTER SIX! Dhoni dances down and lofts it 98 meters!')">6 runs</button>
+                        <button class="sim-btn wicket-out" onclick="simulateBall(0, 'wicket', 'OUT! Bowled him! Cleaned up the stumps with a toe-crushing yorker!')">Wicket!</button>
+                        <button class="sim-btn drs-btn" onclick="simulateBall(0, 'drs', 'DRS Referral: Loud appeal for LBW! Umpire shook his head. Review taken!')">DRS Review</button>
+                    </div>
+                </div>
+
+                <!-- TOXICITY LOGGING (FOR DEMO) -->
+                <div class="moderator-deck">
+                    <h2 class="panel-title"><i class="fa-solid fa-shield-halved text-red"></i> Moderation Shield (System E)</h2>
+                    <div class="moderator-logs" id="moderator-logs">
+                        <p class="no-logs">No toxic comments blocked yet. Try sending bad words in chat to test the filter.</p>
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+    </div>
+
+    <!-- User Profile Config Modal Overlay -->
+    <div class="modal-overlay" id="profile-modal">
+        <div class="profile-card">
+            <h2>Welcome to DugOut!</h2>
+            <p>Setup your fan profile to join the tribal stands:</p>
+            <div class="form-group">
+                <label for="username-input">Choose Username:</label>
+                <input type="text" id="username-input" value="Fanatic_99">
+            </div>
+            <div class="form-group">
+                <label>Select Team Alliance:</label>
+                <div class="team-selector">
+                    <button class="team-select-btn csk" onclick="selectProfileTeam('csk')">CSK Fan</button>
+                    <button class="team-select-btn mi" onclick="selectProfileTeam('mi')">MI Fan</button>
+                    <button class="team-select-btn neutral active" onclick="selectProfileTeam('neutral')">Neutral</button>
+                </div>
+            </div>
+            <button class="submit-profile-btn" onclick="saveProfile()">Enter Stadium</button>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
