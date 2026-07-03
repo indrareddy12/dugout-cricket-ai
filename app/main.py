@@ -57,6 +57,7 @@ async def websocket_chat_endpoint(websocket: WebSocket, stand_id: str):
         fan_counts = await state_manager.get_fan_counts()
         
         fantasy_teams = await state_manager.get_fantasy_teams()
+        debate_state = await state_manager.get_active_debate()
         await websocket.send_text(json.dumps({
             "type": "init",
             "scorecard": scorecard,
@@ -64,13 +65,25 @@ async def websocket_chat_endpoint(websocket: WebSocket, stand_id: str):
             "drs": drs_state.model_dump(),
             "moderator_logs": moderator_logs,
             "fan_counts": fan_counts,
-            "fantasy_teams": fantasy_teams
+            "fantasy_teams": fantasy_teams,
+            "debate": debate_state
         }))
         
         while True:
             data = await websocket.receive_text()
             message_payload = json.loads(data)
             
+            if message_payload.get("type") == "submit_debate_argument":
+                argument = message_payload.get("argument", "").strip()
+                team_val = message_payload.get("team", "neutral")
+                if team_val in ["csk", "mi"]:
+                    await state_manager.submit_debate_statement(team_val, argument)
+                continue
+
+            if message_payload.get("type") == "reset_debate":
+                await state_manager.reset_debate()
+                continue
+
             if message_payload.get("type") == "share_fantasy_card":
                 card_type = message_payload.get("card_type", "brag")
                 team_name = message_payload.get("team_name", "Indra's Dream Team")

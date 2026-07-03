@@ -110,10 +110,39 @@ async def test_fantasy_points():
     assert new_points2 == new_points - 40, f"Gaikwad points should decrease by 40, got {new_points2 - new_points}"
     print("OK: Fantasy points updates and captain multipliers validated successfully.")
 
+async def test_debate_refereeing():
+    print("\nTesting AI-Refereed Fan Debate Arena state progression...")
+    debate = await state_manager.get_active_debate()
+    assert debate["status"] == "waiting"
+    
+    # CSK fan submits argument
+    updated = await state_manager.submit_debate_statement("csk", "Dhoni won 5 trophies and has best finishing stats!")
+    assert updated["csk_statement"] == "Dhoni won 5 trophies and has best finishing stats!"
+    assert updated["status"] == "waiting"
+    
+    # MI fan submits argument, triggering refereeing
+    resolved = await state_manager.submit_debate_statement("mi", "Rohit has won 5 trophies as captain and MI beat CSK head-to-head!")
+    assert resolved["mi_statement"] == "Rohit has won 5 trophies as captain and MI beat CSK head-to-head!"
+    assert resolved["status"] == "finished"
+    assert resolved["result"] is not None
+    assert "winner" in resolved["result"]
+    assert "csk_score" in resolved["result"]
+    assert "mi_score" in resolved["result"]
+    assert "recap" in resolved["result"]
+    
+    # Reset debate
+    cleared = await state_manager.reset_debate()
+    assert cleared["csk_statement"] == ""
+    assert cleared["mi_statement"] == ""
+    assert cleared["status"] == "waiting"
+    assert cleared["result"] is None
+    print("OK: AI debate refereeing state progression validated successfully.")
+
 if __name__ == "__main__":
     print("=== RUNNING STATE MANAGER CONCURRENCY TESTS ===")
     asyncio.run(test_scorecard_thread_safety())
     asyncio.run(test_drs_vote_concurrency())
     asyncio.run(test_fan_counts())
     asyncio.run(test_fantasy_points())
+    asyncio.run(test_debate_refereeing())
     print("\nALL STATE MANAGER TESTS PASSED SUCCESSFULLY! (OK)")

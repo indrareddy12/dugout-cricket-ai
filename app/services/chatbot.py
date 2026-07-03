@@ -593,3 +593,106 @@ def ask_duggy_mock(query: str, stats_context: str, match_score: dict) -> str:
             f"Ask me about player stats (e.g. *Kohli*, *Bumrah*, *Dhoni*) or type 'score' to check the live match state! 📈\n\n"
             f"*(Tip: Ensure your `GEMINI_API_KEY` is configured in the `.env` file and has active quota to unlock dynamic AI analytics!)*"
         )
+
+
+def referee_debate(statement_csk: str, statement_mi: str) -> dict:
+    """Uses LLM (Ollama, HF, or Gemini) to act as a factual cricket referee for a fan debate."""
+    system_instruction = (
+        "You are the official 'AI Referee' on the DugOut social platform. "
+        "Evaluate a debate duel between a CSK fan and an MI fan. "
+        "Analyze the factual accuracy of their claims (using historical cricket knowledge), "
+        "detect any logical fallacies, grade each argument out of 10, "
+        "and declare a winner (CSK, MI, or DRAW). "
+        "Finally, write a witty, T20 commentary-style recap of the duel under 3 sentences. "
+        "Format your entire response as a JSON string with keys: 'csk_score' (int), 'mi_score' (int), "
+        "'winner' (string: 'CSK', 'MI', or 'DRAW'), and 'recap' (string)."
+    )
+    
+    prompt = (
+        f"CSK Fan Argument: \"{statement_csk}\"\n"
+        f"MI Fan Argument: \"{statement_mi}\"\n"
+        f"Please provide your verdict in valid JSON."
+    )
+    
+    # Try local LLM
+    if USE_LOCAL_LLM:
+        try:
+            payload = {
+                "model": LOCAL_LLM_MODEL,
+                "messages": [
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": prompt}
+                ],
+                "stream": False,
+                "format": "json"
+            }
+            with httpx.Client(timeout=30.0) as client:
+                r = client.post(f"{LOCAL_LLM_URL}/api/chat", json=payload)
+                if r.status_code == 200:
+                    data = r.json()
+                    content = data.get("message", {}).get("content", "").strip()
+                    parsed = json.loads(content)
+                    if "winner" in parsed:
+                        return parsed
+        except Exception as e:
+            print(f"Local LLM debate refereeing error: {e}")
+
+    # Try HF
+    if USE_HF_LLM and HF_API_KEY:
+        try:
+            url = f"https://api-inference.huggingface.co/models/{HF_LLM_MODEL}/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+            payload = {
+                "model": HF_LLM_MODEL,
+                "messages": [
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": prompt}
+                ],
+                "stream": False,
+                "temperature": 0.5
+            }
+            with httpx.Client(timeout=30.0) as client:
+                r = client.post(url, headers=headers, json=payload)
+                if r.status_code == 200:
+                    data = r.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                    # Parse json from markdown block if any
+                    if "```json" in content:
+                        content = content.split("```json")[1].split("```")[0].strip()
+                    elif "```" in content:
+                        content = content.split("```")[1].split("```")[0].strip()
+                    parsed = json.loads(content)
+                    if "winner" in parsed:
+                        return parsed
+        except Exception as e:
+            print(f"HF debate refereeing error: {e}")
+
+    # Try Gemini
+    if GEMINI_API_KEY:
+        try:
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    response_mime_type="application/json",
+                    temperature=0.5
+                )
+            )
+            parsed = json.loads(response.text.strip())
+            if "winner" in parsed:
+                return parsed
+        except Exception as e:
+            print(f"Gemini debate refereeing error: {e}")
+
+    # Fallback mock referee response
+    csk_score = min(10, max(5, len(statement_csk) // 10))
+    mi_score = min(10, max(5, len(statement_mi) // 10))
+    winner = "CSK" if csk_score > mi_score else ("MI" if mi_score > csk_score else "DRAW")
+    return {
+        "csk_score": csk_score,
+        "mi_score": mi_score,
+        "winner": winner,
+        "recap": f"A heated duel! CSK fan argued on trophies while MI fan highlighted win rates. Umpire gives it as {winner}! 🏏🏆"
+    }

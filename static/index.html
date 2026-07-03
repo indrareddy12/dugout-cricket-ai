@@ -157,6 +157,62 @@
                     </div>
                 </div>
 
+                <!-- FEATURE 7: 3D BALL-TRACKER REPLAY PANEL -->
+                <div class="collapsible-card">
+                    <div class="card-header" onclick="toggleCollapsible('replay-body', 'replay-toggle-icon')">
+                        <span><i class="fa-solid fa-circle-play text-green"></i> 3D Ball-Tracker Replay</span>
+                        <i class="fa-solid fa-chevron-down toggle-icon" id="replay-toggle-icon"></i>
+                    </div>
+                    <div class="card-body collapsed" id="replay-body">
+                        <div class="canvas-wrapper">
+                            <canvas id="replay-canvas" width="376" height="180"></canvas>
+                        </div>
+                        <div class="replay-controls">
+                            <button class="replay-btn" id="replay-play-btn" onclick="startBallReplay()"><i class="fa-solid fa-play"></i> Replay Delivery</button>
+                            <div class="replay-setting">
+                                <label>Speed:</label>
+                                <select id="replay-speed" onchange="changeReplaySpeed()">
+                                    <option value="1">1.0x</option>
+                                    <option value="0.5">0.5x</option>
+                                </select>
+                            </div>
+                            <div class="replay-setting">
+                                <label>Angle:</label>
+                                <select id="replay-angle" onchange="changeReplayAngle()">
+                                    <option value="side">Side View</option>
+                                    <option value="behind">Behind Wickets</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FEATURE 8: AI-REFEREED FAN DEBATE ARENA -->
+                <div class="collapsible-card">
+                    <div class="card-header" onclick="toggleCollapsible('debate-body', 'debate-toggle-icon')">
+                        <span><i class="fa-solid fa-scale-balanced text-yellow"></i> AI-Refereed Fan Debate Arena</span>
+                        <i class="fa-solid fa-chevron-down toggle-icon" id="debate-toggle-icon"></i>
+                    </div>
+                    <div class="card-body collapsed" id="debate-body">
+                        <p class="section-desc">Submit fan arguments to resolve head-to-head cricket stats debates fact-checked by the AI Umpire Referee!</p>
+                        <div class="debate-arena-wrapper">
+                            <div class="debate-side csk-side">
+                                <span class="side-badge csk-badge">CSK Argument</span>
+                                <textarea id="debate-input-csk" placeholder="e.g. Dhoni has won 5 IPL trophies and has the best finishing stats under pressure!"></textarea>
+                                <button class="debate-submit-btn csk" onclick="submitDebate('csk')">Submit CSK</button>
+                            </div>
+                            <div class="debate-side mi-side">
+                                <span class="side-badge mi-badge">MI Argument</span>
+                                <textarea id="debate-input-mi" placeholder="e.g. Rohit has won 5 IPL trophies as captain and MI beat CSK in most IPL finals head-to-head!"></textarea>
+                                <button class="debate-submit-btn mi" onclick="submitDebate('mi')">Submit MI</button>
+                            </div>
+                        </div>
+                        <div class="debate-status-box" id="debate-status-box">
+                            <div class="debate-placeholder-text">Waiting for both statements...</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- CHAT DISPLAY CONTAINER -->
                 <div class="chat-viewport">
                     <!-- DRS VOTING WIDGET (OVERLAY IN CHAT) -->
@@ -269,6 +325,40 @@
                 </div>
             </div>
             <button class="submit-profile-btn" onclick="saveProfile()">Enter Stadium</button>
+        </div>
+    </div>
+
+    <!-- FEATURE 3: AUDIO DUGOUTS (Interactive Spaces) -->
+    <div class="audio-dugout-panel" id="audio-dugout-panel">
+        <div class="audio-left">
+            <div class="audio-host-avatar animate-mic-pulse">
+                <i class="fa-solid fa-microphone-lines text-green"></i>
+            </div>
+            <div class="audio-info">
+                <div class="audio-title">Live Commentary: Expert Dugout</div>
+                <div class="audio-speakers">Host: <strong>Virender Sehwag</strong> | Speaker: <strong>Harbhajan Singh</strong></div>
+            </div>
+        </div>
+        
+        <div class="audio-wave-container" id="audio-waves">
+            <div class="audio-wave-bar"></div>
+            <div class="audio-wave-bar"></div>
+            <div class="audio-wave-bar"></div>
+            <div class="audio-wave-bar"></div>
+            <div class="audio-wave-bar"></div>
+        </div>
+        
+        <div class="audio-controls">
+            <span class="audio-count"><i class="fa-solid fa-users"></i> 142 listening</span>
+            <button class="audio-btn speak-btn" id="audio-speak-btn" onclick="toggleSpeakRequest()">
+                <i class="fa-solid fa-hand"></i> Request to Speak
+            </button>
+            <button class="audio-btn mute-btn hidden" id="audio-mute-btn" onclick="toggleMuteAudio()">
+                <i class="fa-solid fa-microphone-slash"></i> Mute
+            </button>
+            <button class="audio-btn leave-btn" onclick="toggleAudioDugoutPanel(false)">
+                <i class="fa-solid fa-door-open"></i> Leave Space
+            </button>
         </div>
     </div>
 

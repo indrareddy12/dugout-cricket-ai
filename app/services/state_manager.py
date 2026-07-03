@@ -121,6 +121,15 @@ class BaseStateManager:
     async def update_fantasy_points(self, batsman: str, bowler: str, runs: int, event_type: str) -> dict:
         raise NotImplementedError()
 
+    async def get_active_debate(self) -> dict:
+        raise NotImplementedError()
+
+    async def submit_debate_statement(self, team: str, statement: str) -> dict:
+        raise NotImplementedError()
+
+    async def reset_debate(self) -> dict:
+        raise NotImplementedError()
+
 
 class InMemoryStateManager(BaseStateManager):
     def __init__(self):
@@ -130,6 +139,12 @@ class InMemoryStateManager(BaseStateManager):
         self._moment_threads: List[MomentThread] = [MomentThread.model_validate(t) for t in DEFAULT_MOCK_THREADS]
         self._moderator_logs: List[dict] = []
         self._fantasy_teams = json.loads(json.dumps(DEFAULT_FANTASY_TEAMS))
+        self._active_debate = {
+            "csk_statement": "",
+            "mi_statement": "",
+            "status": "waiting",
+            "result": None
+        }
         self._lock = asyncio.Lock()
 
     async def get_scorecard(self) -> dict:
@@ -253,6 +268,54 @@ class InMemoryStateManager(BaseStateManager):
         for stand in self.active_sockets.keys():
             await self.local_broadcast(stand, payload)
 
+    async def get_active_debate(self) -> dict:
+        async with self._lock:
+            return dict(self._active_debate)
+
+    async def submit_debate_statement(self, team: str, statement: str) -> dict:
+        async with self._lock:
+            if team == "csk":
+                self._active_debate["csk_statement"] = statement
+            elif team == "mi":
+                self._active_debate["mi_statement"] = statement
+            
+            if self._active_debate["csk_statement"] and self._active_debate["mi_statement"]:
+                self._active_debate["status"] = "judging"
+                await self.broadcast_to_all({
+                    "type": "debate_updated",
+                    "debate": self._active_debate
+                })
+                # Call refereeing
+                from app.services.chatbot import referee_debate
+                result = referee_debate(self._active_debate["csk_statement"], self._active_debate["mi_statement"])
+                self._active_debate["result"] = result
+                self._active_debate["status"] = "finished"
+                await self.broadcast_to_all({
+                    "type": "debate_resolved",
+                    "debate": self._active_debate
+                })
+            else:
+                self._active_debate["status"] = "waiting"
+                await self.broadcast_to_all({
+                    "type": "debate_updated",
+                    "debate": self._active_debate
+                })
+            return dict(self._active_debate)
+
+    async def reset_debate(self) -> dict:
+        async with self._lock:
+            self._active_debate = {
+                "csk_statement": "",
+                "mi_statement": "",
+                "status": "waiting",
+                "result": None
+            }
+            await self.broadcast_to_all({
+                "type": "debate_updated",
+                "debate": self._active_debate
+            })
+            return dict(self._active_debate)
+
 
 class RedisStateManager(BaseStateManager):
     def __init__(self):
@@ -264,6 +327,12 @@ class RedisStateManager(BaseStateManager):
         self._moment_threads: List[MomentThread] = [MomentThread.model_validate(t) for t in DEFAULT_MOCK_THREADS]
         self._moderator_logs: List[dict] = []
         self._fantasy_teams = json.loads(json.dumps(DEFAULT_FANTASY_TEAMS))
+        self._active_debate = {
+            "csk_statement": "",
+            "mi_statement": "",
+            "status": "waiting",
+            "result": None
+        }
         self._local_lock = asyncio.Lock()
 
     async def initialize(self):
@@ -624,6 +693,150 @@ class RedisStateManager(BaseStateManager):
             await pubsub.unsubscribe(*channels)
         except Exception as e:
             print(f"Redis Pub/Sub listener error: {e}")
+
+
+    async def get_active_debate(self) -> dict:
+        if not self.redis_client:
+            async with self._local_lock:
+                return dict(self._active_debate)
+        try:
+            data = await self.redis_client.get("dugout:debate")
+            if data:
+                return json.loads(data)
+        except Exception as e:
+            print(f"Redis get_active_debate error: {e}")
+        async with self._local_lock:
+            return dict(self._active_debate)
+
+    async def submit_debate_statement(self, team: str, statement: str) -> dict:
+        if not self.redis_client:
+            async with self._local_lock:
+                if team == "csk":
+                    self._active_debate["csk_statement"] = statement
+                elif team == "mi":
+                    self._active_debate["mi_statement"] = statement
+                
+                if self._active_debate["csk_statement"] and self._active_debate["mi_statement"]:
+                    self._active_debate["status"] = "judging"
+                    await self.broadcast_to_all({
+                        "type": "debate_updated",
+                        "debate": self._active_debate
+                    })
+                    from app.services.chatbot import referee_debate
+                    result = referee_debate(self._active_debate["csk_statement"], self._active_debate["mi_statement"])
+                    self._active_debate["result"] = result
+                    self._active_debate["status"] = "finished"
+                    await self.broadcast_to_all({
+                        "type": "debate_resolved",
+                        "debate": self._active_debate
+                    })
+                else:
+                    self._active_debate["status"] = "waiting"
+                    await self.broadcast_to_all({
+                        "type": "debate_updated",
+                        "debate": self._active_debate
+                    })
+                return dict(self._active_debate)
+
+        try:
+            data = await self.redis_client.get("dugout:debate")
+            debate = json.loads(data) if data else {
+                "csk_statement": "",
+                "mi_statement": "",
+                "status": "waiting",
+                "result": None
+            }
+            if team == "csk":
+                debate["csk_statement"] = statement
+            elif team == "mi":
+                debate["mi_statement"] = statement
+            
+            if debate["csk_statement"] and debate["mi_statement"]:
+                debate["status"] = "judging"
+                await self.redis_client.set("dugout:debate", json.dumps(debate))
+                await self.broadcast_to_all({
+                    "type": "debate_updated",
+                    "debate": debate
+                })
+                from app.services.chatbot import referee_debate
+                result = referee_debate(debate["csk_statement"], debate["mi_statement"])
+                debate["result"] = result
+                debate["status"] = "finished"
+                await self.redis_client.set("dugout:debate", json.dumps(debate))
+                await self.broadcast_to_all({
+                    "type": "debate_resolved",
+                    "debate": debate
+                })
+            else:
+                debate["status"] = "waiting"
+                await self.redis_client.set("dugout:debate", json.dumps(debate))
+                await self.broadcast_to_all({
+                    "type": "debate_updated",
+                    "debate": debate
+                })
+            return debate
+        except Exception as e:
+            print(f"Redis submit_debate_statement error: {e}")
+
+        async with self._local_lock:
+            if team == "csk":
+                self._active_debate["csk_statement"] = statement
+            elif team == "mi":
+                self._active_debate["mi_statement"] = statement
+            
+            if self._active_debate["csk_statement"] and self._active_debate["mi_statement"]:
+                self._active_debate["status"] = "judging"
+                await self.broadcast_to_all({
+                    "type": "debate_updated",
+                    "debate": self._active_debate
+                })
+                from app.services.chatbot import referee_debate
+                result = referee_debate(self._active_debate["csk_statement"], self._active_debate["mi_statement"])
+                self._active_debate["result"] = result
+                self._active_debate["status"] = "finished"
+                await self.broadcast_to_all({
+                    "type": "debate_resolved",
+                    "debate": self._active_debate
+                })
+            else:
+                self._active_debate["status"] = "waiting"
+                await self.broadcast_to_all({
+                    "type": "debate_updated",
+                    "debate": self._active_debate
+                })
+            return dict(self._active_debate)
+
+    async def reset_debate(self) -> dict:
+        empty_debate = {
+            "csk_statement": "",
+            "mi_statement": "",
+            "status": "waiting",
+            "result": None
+        }
+        if not self.redis_client:
+            async with self._local_lock:
+                self._active_debate = empty_debate
+                await self.broadcast_to_all({
+                    "type": "debate_updated",
+                    "debate": self._active_debate
+                })
+                return dict(self._active_debate)
+        try:
+            await self.redis_client.set("dugout:debate", json.dumps(empty_debate))
+            await self.broadcast_to_all({
+                "type": "debate_updated",
+                "debate": empty_debate
+            })
+            return empty_debate
+        except Exception as e:
+            print(f"Redis reset_debate error: {e}")
+        async with self._local_lock:
+            self._active_debate = empty_debate
+            await self.broadcast_to_all({
+                "type": "debate_updated",
+                "debate": self._active_debate
+            })
+            return dict(self._active_debate)
 
 
 # Instantiation

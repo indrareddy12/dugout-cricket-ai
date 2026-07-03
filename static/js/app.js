@@ -89,6 +89,9 @@ function connectWebSocket(standId) {
                 if (data.fantasy_teams) {
                     updateFantasyUI(data.fantasy_teams);
                 }
+                if (data.debate) {
+                    updateDebateUI(data.debate);
+                }
                 break;
                 
             case "message":
@@ -129,6 +132,14 @@ function connectWebSocket(standId) {
 
             case "fantasy_update":
                 updateFantasyUI(data.teams);
+                break;
+
+            case "debate_updated":
+                updateDebateUI(data.debate);
+                break;
+
+            case "debate_resolved":
+                updateDebateUI(data.debate);
                 break;
         }
     };
@@ -666,4 +677,312 @@ function shareFantasyCard(cardType) {
         sender: username,
         team: userTeam
     }));
+}
+
+// --- Collapsible Cards Controller ---
+function toggleCollapsible(bodyId, iconId) {
+    const body = document.getElementById(bodyId);
+    const icon = document.getElementById(iconId);
+    if (body) {
+        body.classList.toggle("collapsed");
+        if (icon) {
+            if (body.classList.contains("collapsed")) {
+                icon.className = "fa-solid fa-chevron-down toggle-icon";
+            } else {
+                icon.className = "fa-solid fa-chevron-up toggle-icon";
+                if (bodyId === "replay-body") {
+                    setTimeout(drawInitialPitch, 50);
+                }
+            }
+        }
+    }
+}
+
+// --- Audio Dugout Space Controls ---
+let isSpeakRequested = false;
+let isAudioMuted = false;
+
+function toggleSpeakRequest() {
+    const speakBtn = document.getElementById("audio-speak-btn");
+    const muteBtn = document.getElementById("audio-mute-btn");
+    const waves = document.getElementById("audio-waves");
+    
+    if (!speakBtn) return;
+    
+    isSpeakRequested = !isSpeakRequested;
+    if (isSpeakRequested) {
+        speakBtn.innerHTML = `<i class="fa-solid fa-microphone"></i> Speaking`;
+        speakBtn.classList.add("active");
+        if (muteBtn) muteBtn.classList.remove("hidden");
+        if (waves) waves.classList.add("speaking");
+        appendSystemMessage("You are now a speaker in the Audio Dugout.");
+    } else {
+        speakBtn.innerHTML = `<i class="fa-solid fa-hand"></i> Request to Speak`;
+        speakBtn.classList.remove("active");
+        if (muteBtn) muteBtn.classList.add("hidden");
+        if (waves) waves.classList.remove("speaking");
+        isAudioMuted = false;
+        if (muteBtn) {
+            muteBtn.classList.remove("active");
+            muteBtn.innerHTML = `<i class="fa-solid fa-microphone-slash"></i> Mute`;
+        }
+        appendSystemMessage("You returned to the listener section.");
+    }
+}
+
+function toggleMuteAudio() {
+    const muteBtn = document.getElementById("audio-mute-btn");
+    const waves = document.getElementById("audio-waves");
+    if (!muteBtn) return;
+    
+    isAudioMuted = !isAudioMuted;
+    if (isAudioMuted) {
+        muteBtn.innerHTML = `<i class="fa-solid fa-microphone"></i> Unmute`;
+        muteBtn.classList.add("active");
+        if (waves) waves.classList.remove("speaking");
+    } else {
+        muteBtn.innerHTML = `<i class="fa-solid fa-microphone-slash"></i> Mute`;
+        muteBtn.classList.remove("active");
+        if (waves) waves.classList.add("speaking");
+    }
+}
+
+function toggleAudioDugoutPanel(visible) {
+    const panel = document.getElementById("audio-dugout-panel");
+    if (panel) {
+        if (visible) {
+            panel.classList.remove("hidden");
+        } else {
+            panel.classList.add("hidden");
+            // Reset state
+            if (isSpeakRequested) {
+                toggleSpeakRequest();
+            }
+        }
+    }
+}
+
+// Show audio space panel on load
+window.addEventListener("DOMContentLoaded", () => {
+    setTimeout(() => {
+        toggleAudioDugoutPanel(true);
+    }, 1500);
+});
+
+// --- AI Debate Arena ---
+function submitDebate(team) {
+    const input = document.getElementById(`debate-input-${team}`);
+    if (!input || !input.value.trim() || !socket) return;
+    
+    socket.send(JSON.stringify({
+        type: "submit_debate_argument",
+        team: team,
+        argument: input.value.trim()
+    }));
+    
+    input.value = "";
+    // Show spinner in debate status box
+    const statusBox = document.getElementById("debate-status-box");
+    if (statusBox) {
+        statusBox.innerHTML = `
+            <div class="debate-loading">
+                <i class="fa-solid fa-circle-notch fa-spin text-yellow"></i>
+                Argument submitted! Waiting for the other side to argue...
+            </div>
+        `;
+    }
+}
+
+function resetDebate() {
+    if (!socket) return;
+    socket.send(JSON.stringify({
+        type: "reset_debate"
+    }));
+}
+
+function updateDebateUI(debate) {
+    const statusBox = document.getElementById("debate-status-box");
+    if (!statusBox) return;
+    
+    if (debate.status === "waiting") {
+        if (debate.csk_statement || debate.mi_statement) {
+            const side = debate.csk_statement ? "CSK" : "MI";
+            statusBox.innerHTML = `
+                <div class="debate-loading">
+                    <i class="fa-solid fa-circle-notch fa-spin text-yellow"></i>
+                    ${side} argument is locked in! Awaiting challenger response...
+                </div>
+            `;
+        } else {
+            statusBox.innerHTML = `
+                <div class="debate-placeholder-text">Waiting for both statements to begin the duel...</div>
+            `;
+        }
+    } else if (debate.status === "judging") {
+        statusBox.innerHTML = `
+            <div class="debate-loading">
+                <i class="fa-solid fa-scale-balanced fa-beat text-yellow"></i>
+                Both arguments received! AI Referee is verifying statistics and logic...
+            </div>
+        `;
+    } else if (debate.status === "finished" && debate.result) {
+        const res = debate.result;
+        statusBox.innerHTML = `
+            <div class="debate-verdict">
+                <div class="debate-verdict-header">
+                    <span>🏆 AI Referee Verdict: <strong class="text-green">${res.winner} wins the duel!</strong></span>
+                    <div class="debate-scores">
+                        <span class="debate-score-badge csk">CSK: ${res.csk_score}/10</span>
+                        <span class="debate-score-badge mi">MI: ${res.mi_score}/10</span>
+                    </div>
+                </div>
+                <p class="debate-verdict-recap">${escapeHTML(res.recap)}</p>
+                <button class="debate-reset-btn" onclick="resetDebate()"><i class="fa-solid fa-arrow-rotate-left"></i> Reset Arena</button>
+            </div>
+        `;
+    }
+}
+
+// --- 3D Ball-Tracker Replay Engine ---
+let replaySpeed = 1;
+let replayAngle = "side";
+let animationId = null;
+
+function changeReplaySpeed() {
+    const select = document.getElementById("replay-speed");
+    if (select) replaySpeed = parseFloat(select.value);
+}
+
+function changeReplayAngle() {
+    const select = document.getElementById("replay-angle");
+    if (select) {
+        replayAngle = select.value;
+        drawInitialPitch();
+    }
+}
+
+function drawInitialPitch() {
+    const canvas = document.getElementById("replay-canvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw Grass background
+    ctx.fillStyle = "#0c1511";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    if (replayAngle === "side") {
+        // Draw Side Pitch Beige Strip
+        ctx.fillStyle = "#a88e74";
+        ctx.fillRect(20, 140, canvas.width - 40, 8);
+        
+        // Creases
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(80, 140);
+        ctx.lineTo(80, 148);
+        ctx.moveTo(310, 140);
+        ctx.lineTo(310, 148);
+        ctx.stroke();
+        
+        // Draw Stumps
+        ctx.fillStyle = "#e2e8f0";
+        ctx.fillRect(310, 95, 2, 45); // Left
+        ctx.fillRect(313, 95, 2, 45); // Center
+        ctx.fillRect(316, 95, 2, 45); // Right
+        ctx.fillStyle = "#ef4444";
+        ctx.fillRect(309, 93, 10, 2); // Bail
+    } else {
+        // Behind Wicket perspective trapezoid
+        ctx.fillStyle = "#a88e74";
+        ctx.beginPath();
+        ctx.moveTo(150, 70);
+        ctx.lineTo(226, 70);
+        ctx.lineTo(330, 160);
+        ctx.lineTo(46, 160);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw Stumps at far end
+        ctx.fillStyle = "#e2e8f0";
+        ctx.fillRect(185, 45, 1.5, 25);
+        ctx.fillRect(188, 45, 1.5, 25);
+        ctx.fillRect(191, 45, 1.5, 25);
+        ctx.fillStyle = "#ef4444";
+        ctx.fillRect(184, 44, 9, 1.5);
+    }
+}
+
+function startBallReplay() {
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+    }
+    
+    const canvas = document.getElementById("replay-canvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    
+    let frame = 0;
+    const totalFrames = 100 * (1 / replaySpeed);
+    
+    function drawFrame() {
+        drawInitialPitch();
+        frame++;
+        
+        let ballX = 0;
+        let ballY = 0;
+        let ballRadius = 5.5;
+        const progress = frame / totalFrames;
+        
+        if (replayAngle === "side") {
+            // Parabolic arc release at (60, 90), bounce at (220, 140), finish at (312, 108)
+            ballX = 60 + progress * 252;
+            if (progress < 0.65) {
+                // First arc to bounce
+                const p = progress / 0.65;
+                ballY = 90 + 50 * p * p - 20 * Math.sin(p * Math.PI);
+            } else {
+                // Rise after bounce
+                const p = (progress - 0.65) / 0.35;
+                ballY = 140 - 32 * Math.sin(p * Math.PI / 2);
+            }
+        } else {
+            // Behind wickets: release at bottom (200, 160), bounce at (188, 110), finish at stumps (188, 50)
+            // Perspective shrinking radius
+            ballRadius = 9 - progress * 5;
+            ballX = 188 + (1 - progress) * 12;
+            
+            if (progress < 0.65) {
+                const p = progress / 0.65;
+                ballY = 160 - 50 * p + 18 * Math.sin(p * Math.PI);
+            } else {
+                const p = (progress - 0.65) / 0.35;
+                ballY = 110 - 60 * p + 8 * Math.sin(p * Math.PI);
+            }
+        }
+        
+        // Draw Ball
+        ctx.beginPath();
+        ctx.arc(ballX, ballY, ballRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = "#f87171";
+        ctx.shadowColor = "rgba(239, 68, 68, 0.6)";
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0; // Reset shadow
+        
+        // Bail fly off if progress is close to stumps impact
+        if (replayAngle === "side" && progress > 0.95) {
+            ctx.fillStyle = "#ef4444";
+            // Draw flew off bail
+            ctx.fillRect(318, 75 - (progress - 0.95)*80, 8, 2);
+        }
+        
+        if (frame < totalFrames) {
+            animationId = requestAnimationFrame(drawFrame);
+        }
+    }
+    
+    drawFrame();
 }
