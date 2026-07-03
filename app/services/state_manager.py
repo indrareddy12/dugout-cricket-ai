@@ -23,6 +23,29 @@ DEFAULT_SCORECARD = {
     "excitement_mi": 38
 }
 
+DEFAULT_FANTASY_TEAMS = {
+    "user_team": {
+        "name": "Indra's Dream Team",
+        "captain": "Ruturaj Gaikwad",
+        "players": {
+            "Ruturaj Gaikwad": {"role": "Batsman", "points": 92},
+            "MS Dhoni": {"role": "Wicketkeeper", "points": 0},
+            "Ravindra Jadeja": {"role": "All-Rounder", "points": 10}
+        },
+        "total_points": 102
+    },
+    "challenger_team": {
+        "name": "Challenger XI",
+        "captain": "Jasprit Bumrah",
+        "players": {
+            "Jasprit Bumrah": {"role": "Bowler", "points": 54},
+            "Rohit Sharma": {"role": "Batsman", "points": 0},
+            "Hardik Pandya": {"role": "All-Rounder", "points": 0}
+        },
+        "total_points": 54
+    }
+}
+
 DEFAULT_MOCK_THREADS = [
     {
         "id": "mock-thread-1",
@@ -92,6 +115,12 @@ class BaseStateManager:
             if ws in sockets:
                 sockets.remove(ws)
 
+    async def get_fantasy_teams(self) -> dict:
+        raise NotImplementedError()
+
+    async def update_fantasy_points(self, batsman: str, bowler: str, runs: int, event_type: str) -> dict:
+        raise NotImplementedError()
+
 
 class InMemoryStateManager(BaseStateManager):
     def __init__(self):
@@ -100,6 +129,7 @@ class InMemoryStateManager(BaseStateManager):
         self._drs_state = DRSState()
         self._moment_threads: List[MomentThread] = [MomentThread.model_validate(t) for t in DEFAULT_MOCK_THREADS]
         self._moderator_logs: List[dict] = []
+        self._fantasy_teams = json.loads(json.dumps(DEFAULT_FANTASY_TEAMS))
         self._lock = asyncio.Lock()
 
     async def get_scorecard(self) -> dict:
@@ -166,6 +196,56 @@ class InMemoryStateManager(BaseStateManager):
         async with self._lock:
             self._moderator_logs.append(log)
 
+    async def get_fantasy_teams(self) -> dict:
+        async with self._lock:
+            return self._fantasy_teams
+
+    async def update_fantasy_points(self, batsman: str, bowler: str, runs: int, event_type: str) -> dict:
+        async with self._lock:
+            user_team = self._fantasy_teams["user_team"]
+            challenger_team = self._fantasy_teams["challenger_team"]
+            
+            # Helper to calculate points earned on this delivery
+            def process_player(player_name, is_captain, is_batsman, is_bowler):
+                pts = 0
+                if is_batsman:
+                    pts += runs * 1
+                    if runs == 4:
+                        pts += 1
+                    elif runs == 6:
+                        pts += 2
+                    if event_type == "wicket":
+                        pts -= 20
+                if is_bowler:
+                    if event_type == "wicket":
+                        pts += 25
+                    elif runs == 0:
+                        pts += 1
+                return pts * 2 if is_captain else pts
+
+            # Update user team (Indra's Dream Team)
+            for name, details in user_team["players"].items():
+                is_captain = (name == user_team["captain"])
+                pts_earned = process_player(name, is_captain, name == batsman, name == bowler)
+                details["points"] += pts_earned
+
+            # Update challenger team (Challenger XI)
+            for name, details in challenger_team["players"].items():
+                is_captain = (name == challenger_team["captain"])
+                pts_earned = process_player(name, is_captain, name == batsman, name == bowler)
+                details["points"] += pts_earned
+
+            # Re-sum points
+            user_team["total_points"] = sum(p["points"] for p in user_team["players"].values())
+            challenger_team["total_points"] = sum(p["points"] for p in challenger_team["players"].values())
+
+            # Broadcast update
+            await self.broadcast_to_all({
+                "type": "fantasy_update",
+                "teams": self._fantasy_teams
+            })
+            return self._fantasy_teams
+
     async def broadcast_to_stand(self, stand_id: str, payload: dict):
         await self.local_broadcast(stand_id, payload)
 
@@ -183,6 +263,7 @@ class RedisStateManager(BaseStateManager):
         self._drs_state = DRSState()
         self._moment_threads: List[MomentThread] = [MomentThread.model_validate(t) for t in DEFAULT_MOCK_THREADS]
         self._moderator_logs: List[dict] = []
+        self._fantasy_teams = json.loads(json.dumps(DEFAULT_FANTASY_TEAMS))
         self._local_lock = asyncio.Lock()
 
     async def initialize(self):
@@ -203,6 +284,9 @@ class RedisStateManager(BaseStateManager):
             if not await self.redis_client.exists("dugout:threads"):
                 for thread in reversed(DEFAULT_MOCK_THREADS):
                     await self.redis_client.lpush("dugout:threads", json.dumps(thread))
+
+            if not await self.redis_client.exists("dugout:fantasy"):
+                await self.redis_client.set("dugout:fantasy", json.dumps(DEFAULT_FANTASY_TEAMS))
 
             # Start background pub/sub listener
             self.pubsub_task = asyncio.create_task(self._listen_for_broadcasts())
@@ -405,6 +489,94 @@ class RedisStateManager(BaseStateManager):
             print(f"Redis add_moderator_log error: {e}")
             async with self._local_lock:
                 self._moderator_logs.append(log)
+
+    async def get_fantasy_teams(self) -> dict:
+        if not self.redis_client:
+            async with self._local_lock:
+                return self._fantasy_teams
+        try:
+            data = await self.redis_client.get("dugout:fantasy")
+            if data:
+                return json.loads(data)
+        except Exception as e:
+            print(f"Redis get_fantasy_teams error: {e}")
+        async with self._local_lock:
+            return self._fantasy_teams
+
+    async def update_fantasy_points(self, batsman: str, bowler: str, runs: int, event_type: str) -> dict:
+        def process_player(player_name, is_captain, is_batsman, is_bowler):
+            pts = 0
+            if is_batsman:
+                pts += runs * 1
+                if runs == 4:
+                    pts += 1
+                elif runs == 6:
+                    pts += 2
+                if event_type == "wicket":
+                    pts -= 20
+            if is_bowler:
+                if event_type == "wicket":
+                    pts += 25
+                elif runs == 0:
+                    pts += 1
+            return pts * 2 if is_captain else pts
+
+        if not self.redis_client:
+            async with self._local_lock:
+                user_team = self._fantasy_teams["user_team"]
+                challenger_team = self._fantasy_teams["challenger_team"]
+                for name, details in user_team["players"].items():
+                    is_captain = (name == user_team["captain"])
+                    details["points"] += process_player(name, is_captain, name == batsman, name == bowler)
+                for name, details in challenger_team["players"].items():
+                    is_captain = (name == challenger_team["captain"])
+                    details["points"] += process_player(name, is_captain, name == batsman, name == bowler)
+                user_team["total_points"] = sum(p["points"] for p in user_team["players"].values())
+                challenger_team["total_points"] = sum(p["points"] for p in challenger_team["players"].values())
+                await self.broadcast_to_all({
+                    "type": "fantasy_update",
+                    "teams": self._fantasy_teams
+                })
+                return self._fantasy_teams
+
+        try:
+            data = await self.redis_client.get("dugout:fantasy")
+            teams = json.loads(data) if data else json.loads(json.dumps(DEFAULT_FANTASY_TEAMS))
+            user_team = teams["user_team"]
+            challenger_team = teams["challenger_team"]
+            for name, details in user_team["players"].items():
+                is_captain = (name == user_team["captain"])
+                details["points"] += process_player(name, is_captain, name == batsman, name == bowler)
+            for name, details in challenger_team["players"].items():
+                is_captain = (name == challenger_team["captain"])
+                details["points"] += process_player(name, is_captain, name == batsman, name == bowler)
+            user_team["total_points"] = sum(p["points"] for p in user_team["players"].values())
+            challenger_team["total_points"] = sum(p["points"] for p in challenger_team["players"].values())
+            await self.redis_client.set("dugout:fantasy", json.dumps(teams))
+            await self.broadcast_to_all({
+                "type": "fantasy_update",
+                "teams": teams
+            })
+            return teams
+        except Exception as e:
+            print(f"Redis update_fantasy_points error: {e}")
+
+        async with self._local_lock:
+            user_team = self._fantasy_teams["user_team"]
+            challenger_team = self._fantasy_teams["challenger_team"]
+            for name, details in user_team["players"].items():
+                is_captain = (name == user_team["captain"])
+                details["points"] += process_player(name, is_captain, name == batsman, name == bowler)
+            for name, details in challenger_team["players"].items():
+                is_captain = (name == challenger_team["captain"])
+                details["points"] += process_player(name, is_captain, name == batsman, name == bowler)
+            user_team["total_points"] = sum(p["points"] for p in user_team["players"].values())
+            challenger_team["total_points"] = sum(p["points"] for p in challenger_team["players"].values())
+            await self.broadcast_to_all({
+                "type": "fantasy_update",
+                "teams": self._fantasy_teams
+            })
+            return self._fantasy_teams
 
     async def broadcast_to_stand(self, stand_id: str, payload: dict):
         if not self.redis_client:

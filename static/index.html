@@ -68,6 +68,38 @@
                     <p class="pulse-subtext">Aggregated excitement levels based on chat sentiment (System B)</p>
                 </div>
 
+                <!-- LIVE FANTASY LEAGUE BATTLE WIDGET (Feature 5) -->
+                <div class="fantasy-battle-header">
+                    <h3><i class="fa-solid fa-trophy text-yellow"></i> Live Fantasy Battle</h3>
+                    <span class="subtext">Real-time Score Updates</span>
+                </div>
+                <div class="fantasy-card">
+                    <div class="fantasy-team-wrapper">
+                        <div class="fantasy-team user-fantasy-team">
+                            <div class="fantasy-team-header">
+                                <span class="team-title">Indra's Dream Team</span>
+                                <span class="team-pts-badge" id="user-total-pts">102 pts</span>
+                            </div>
+                            <div class="fantasy-players" id="user-players-list"></div>
+                        </div>
+                        <div class="fantasy-team challenger-fantasy-team">
+                            <div class="fantasy-team-header">
+                                <span class="team-title">Challenger XI</span>
+                                <span class="team-pts-badge" id="challenger-total-pts">54 pts</span>
+                            </div>
+                            <div class="fantasy-players" id="challenger-players-list"></div>
+                        </div>
+                    </div>
+                    <div class="fantasy-actions">
+                        <button class="fantasy-btn brag-btn" onclick="shareFantasyCard('brag')">
+                            <i class="fa-solid fa-bullhorn"></i> Share Brag
+                        </button>
+                        <button class="fantasy-btn cry-btn" onclick="shareFantasyCard('cry')">
+                            <i class="fa-solid fa-face-sad-tear"></i> Share Cry
+                        </button>
+                    </div>
+                </div>
+
                 <div class="timeline-header">
                     <h3><i class="fa-solid fa-scroll"></i> Match Event Threads</h3>
                     <span class="subtext">Auto-generated (System F)</span>

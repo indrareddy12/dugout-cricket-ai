@@ -86,6 +86,9 @@ function connectWebSocket(standId) {
                 if (data.fan_counts) {
                     updateFanCounts(data.fan_counts);
                 }
+                if (data.fantasy_teams) {
+                    updateFantasyUI(data.fantasy_teams);
+                }
                 break;
                 
             case "message":
@@ -122,6 +125,10 @@ function connectWebSocket(standId) {
                 
             case "fan_counts":
                 updateFanCounts(data.counts);
+                break;
+
+            case "fantasy_update":
+                updateFantasyUI(data.teams);
                 break;
         }
     };
@@ -589,4 +596,74 @@ function jsonParse(str) {
         console.error("JSON Parse Error:", e);
         return null;
     }
+}
+
+// --- Live Fantasy League Battle Widget ---
+let currentFantasyTeams = null;
+
+function updateFantasyUI(teams) {
+    if (!teams) return;
+    currentFantasyTeams = teams;
+    
+    const userTotal = document.getElementById("user-total-pts");
+    const challengerTotal = document.getElementById("challenger-total-pts");
+    const userList = document.getElementById("user-players-list");
+    const challengerList = document.getElementById("challenger-players-list");
+    
+    if (userTotal) userTotal.innerText = `${teams.user_team.total_points} pts`;
+    if (challengerTotal) challengerTotal.innerText = `${teams.challenger_team.total_points} pts`;
+    
+    if (userList) {
+        userList.innerHTML = "";
+        Object.entries(teams.user_team.players).forEach(([name, details]) => {
+            const isCaptain = name === teams.user_team.captain;
+            const item = document.createElement("div");
+            item.className = "fantasy-player-item";
+            item.innerHTML = `
+                <span class="player-name">
+                    ${isCaptain ? '<i class="fa-solid fa-star"></i>' : ''}
+                    ${escapeHTML(name)}
+                </span>
+                <span class="player-role">${escapeHTML(details.role)}</span>
+                <span class="player-pts">${details.points}</span>
+            `;
+            userList.appendChild(item);
+        });
+    }
+    
+    if (challengerList) {
+        challengerList.innerHTML = "";
+        Object.entries(teams.challenger_team.players).forEach(([name, details]) => {
+            const isCaptain = name === teams.challenger_team.captain;
+            const item = document.createElement("div");
+            item.className = "fantasy-player-item";
+            item.innerHTML = `
+                <span class="player-name">
+                    ${isCaptain ? '<i class="fa-solid fa-star"></i>' : ''}
+                    ${escapeHTML(name)}
+                </span>
+                <span class="player-role">${escapeHTML(details.role)}</span>
+                <span class="player-pts">${details.points}</span>
+            `;
+            challengerList.appendChild(item);
+        });
+    }
+}
+
+function shareFantasyCard(cardType) {
+    if (!socket || !currentFantasyTeams) return;
+    
+    const teamName = currentFantasyTeams.user_team.name;
+    const captain = currentFantasyTeams.user_team.captain;
+    const totalPoints = currentFantasyTeams.user_team.total_points;
+    
+    socket.send(JSON.stringify({
+        type: "share_fantasy_card",
+        card_type: cardType,
+        team_name: teamName,
+        captain: captain,
+        total_points: totalPoints,
+        sender: username,
+        team: userTeam
+    }));
 }

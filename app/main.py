@@ -56,18 +56,51 @@ async def websocket_chat_endpoint(websocket: WebSocket, stand_id: str):
         moderator_logs = await state_manager.get_moderator_logs()
         fan_counts = await state_manager.get_fan_counts()
         
+        fantasy_teams = await state_manager.get_fantasy_teams()
         await websocket.send_text(json.dumps({
             "type": "init",
             "scorecard": scorecard,
             "threads": [t.model_dump() for t in threads],
             "drs": drs_state.model_dump(),
             "moderator_logs": moderator_logs,
-            "fan_counts": fan_counts
+            "fan_counts": fan_counts,
+            "fantasy_teams": fantasy_teams
         }))
         
         while True:
             data = await websocket.receive_text()
             message_payload = json.loads(data)
+            
+            if message_payload.get("type") == "share_fantasy_card":
+                card_type = message_payload.get("card_type", "brag")
+                team_name = message_payload.get("team_name", "Indra's Dream Team")
+                captain = message_payload.get("captain", "Ruturaj Gaikwad")
+                total_points = message_payload.get("total_points", 102)
+                sender = message_payload.get("sender", "Anonymous")
+                team = message_payload.get("team", "neutral")
+                
+                if card_type == "brag":
+                    msg_text = f"🚀 [Fantasy Brag] {sender}'s Captain {captain} is firing! {team_name} total is now {total_points} pts! 🏆"
+                else:
+                    msg_text = f"😭 [Fantasy Cry] Pressure! {sender}'s Captain {captain} is bleeding points. {team_name} is down to {total_points} pts! 📉"
+                
+                message_id = str(uuid.uuid4())
+                timestamp = datetime.now().strftime("%I:%M %p")
+                
+                msg_obj = ChatMessage(
+                    id=message_id,
+                    stand_id=stand_id,
+                    sender="Fantasy Bot",
+                    message=msg_text,
+                    timestamp=timestamp,
+                    team=team,
+                    is_blocked=False
+                )
+                await state_manager.broadcast_to_stand(stand_id, {
+                    "type": "message",
+                    "message": msg_obj.model_dump()
+                })
+                continue
             
             sender = message_payload.get("sender", "Anonymous")
             raw_text = message_payload.get("message", "").strip()
@@ -158,6 +191,9 @@ async def register_ball_event(event: BallEvent):
 
     # Save to state manager
     updated_scorecard = await state_manager.update_scorecard(scorecard)
+
+    # Update fantasy points
+    await state_manager.update_fantasy_points(event.batsman, event.bowler, event.runs, event.event_type)
 
     # Broadcast updated scorecard
     await state_manager.broadcast_to_all({

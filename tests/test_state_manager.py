@@ -85,9 +85,35 @@ async def test_fan_counts():
     assert counts_after_leave["csk"] == 12, f"CSK count should return to 12, got {counts_after_leave['csk']}"
     print("OK: Fan connection tracking and baseline values validated successfully.")
 
+async def test_fantasy_points():
+    print("\nTesting Live Fantasy Battle point updates...")
+    teams = await state_manager.get_fantasy_teams()
+    assert teams["user_team"]["captain"] == "Ruturaj Gaikwad"
+    start_points = teams["user_team"]["players"]["Ruturaj Gaikwad"]["points"]
+    
+    # 1. Six runs by Gaikwad (Captain -> 2x)
+    # Expected: (6 runs + 2 six bonus) * 2 = 16 pts
+    updated = await state_manager.update_fantasy_points("Ruturaj Gaikwad", "Jasprit Bumrah", 6, "boundary")
+    new_points = updated["user_team"]["players"]["Ruturaj Gaikwad"]["points"]
+    assert new_points == start_points + 16, f"Gaikwad points should increase by 16, got {new_points - start_points}"
+    
+    # 2. Wicket taken by Jasprit Bumrah (Captain -> 2x)
+    # Expected bowler points: 25 wicket points * 2 = 50 pts
+    # Expected batsman points (Gaikwad): -20 pts * 2 = -40 pts
+    start_bumrah = updated["challenger_team"]["players"]["Jasprit Bumrah"]["points"]
+    updated2 = await state_manager.update_fantasy_points("Ruturaj Gaikwad", "Jasprit Bumrah", 0, "wicket")
+    
+    new_bumrah = updated2["challenger_team"]["players"]["Jasprit Bumrah"]["points"]
+    new_points2 = updated2["user_team"]["players"]["Ruturaj Gaikwad"]["points"]
+    
+    assert new_bumrah == start_bumrah + 50, f"Bumrah points should increase by 50, got {new_bumrah - start_bumrah}"
+    assert new_points2 == new_points - 40, f"Gaikwad points should decrease by 40, got {new_points2 - new_points}"
+    print("OK: Fantasy points updates and captain multipliers validated successfully.")
+
 if __name__ == "__main__":
     print("=== RUNNING STATE MANAGER CONCURRENCY TESTS ===")
     asyncio.run(test_scorecard_thread_safety())
     asyncio.run(test_drs_vote_concurrency())
     asyncio.run(test_fan_counts())
+    asyncio.run(test_fantasy_points())
     print("\nALL STATE MANAGER TESTS PASSED SUCCESSFULLY! (OK)")
