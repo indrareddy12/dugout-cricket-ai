@@ -762,11 +762,84 @@ function toggleAudioDugoutPanel(visible) {
     }
 }
 
-// Show audio space panel on load
+// Show audio space panel on load & draw initial pitch
 window.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
         toggleAudioDugoutPanel(true);
     }, 1500);
+    
+    // Draw the 3D replay pitch immediately so the canvas isn't blank
+    setTimeout(drawInitialPitch, 100);
+    
+    // --- Canvas Drag-to-Rotate Interaction ---
+    const replayCanvas = document.getElementById("replay-canvas");
+    if (replayCanvas) {
+        let isDragging = false;
+        let dragStartX = 0;
+        
+        replayCanvas.style.cursor = "grab";
+        
+        replayCanvas.addEventListener("mousedown", (e) => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            replayCanvas.style.cursor = "grabbing";
+        });
+        
+        replayCanvas.addEventListener("mousemove", (e) => {
+            if (!isDragging) return;
+            const deltaX = e.clientX - dragStartX;
+            // If dragged more than 60px horizontally, switch angle
+            if (Math.abs(deltaX) > 60) {
+                const angleSelect = document.getElementById("replay-angle");
+                if (deltaX > 0 && replayAngle === "side") {
+                    replayAngle = "behind";
+                    if (angleSelect) angleSelect.value = "behind";
+                } else if (deltaX < 0 && replayAngle === "behind") {
+                    replayAngle = "side";
+                    if (angleSelect) angleSelect.value = "side";
+                }
+                drawInitialPitch();
+                dragStartX = e.clientX;
+            }
+        });
+        
+        replayCanvas.addEventListener("mouseup", () => {
+            isDragging = false;
+            replayCanvas.style.cursor = "grab";
+        });
+        
+        replayCanvas.addEventListener("mouseleave", () => {
+            isDragging = false;
+            replayCanvas.style.cursor = "grab";
+        });
+        
+        // Touch support for mobile
+        replayCanvas.addEventListener("touchstart", (e) => {
+            isDragging = true;
+            dragStartX = e.touches[0].clientX;
+        }, { passive: true });
+        
+        replayCanvas.addEventListener("touchmove", (e) => {
+            if (!isDragging) return;
+            const deltaX = e.touches[0].clientX - dragStartX;
+            if (Math.abs(deltaX) > 60) {
+                const angleSelect = document.getElementById("replay-angle");
+                if (deltaX > 0 && replayAngle === "side") {
+                    replayAngle = "behind";
+                    if (angleSelect) angleSelect.value = "behind";
+                } else if (deltaX < 0 && replayAngle === "behind") {
+                    replayAngle = "side";
+                    if (angleSelect) angleSelect.value = "side";
+                }
+                drawInitialPitch();
+                dragStartX = e.touches[0].clientX;
+            }
+        }, { passive: true });
+        
+        replayCanvas.addEventListener("touchend", () => {
+            isDragging = false;
+        });
+    }
 });
 
 // --- AI Debate Arena ---

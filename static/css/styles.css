@@ -450,10 +450,19 @@ body {
 
 .chat-viewport {
     flex: 1;
+    min-height: 200px;
     position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+}
+
+.center-content-scrollable {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
 }
 
 .messages-list {

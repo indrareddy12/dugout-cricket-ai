@@ -128,8 +128,9 @@
                         <i class="fa-solid fa-flag mi-color"></i> MI Stand
                     </button>
                 </div>
-                <!-- VIRTUAL STADIUM DECK -->
-                <div class="stadium-card">
+                <div class="center-content-scrollable">
+                    <!-- VIRTUAL STADIUM DECK -->
+                    <div class="stadium-card">
                     <div class="stadium-header">
                         <span><i class="fa-solid fa-stadium"></i> VIRTUAL STADIUM MAP</span>
                         <span class="fan-total-badge" id="fan-total-text">25 fans active</span>
@@ -161,9 +162,9 @@
                 <div class="collapsible-card">
                     <div class="card-header" onclick="toggleCollapsible('replay-body', 'replay-toggle-icon')">
                         <span><i class="fa-solid fa-circle-play text-green"></i> 3D Ball-Tracker Replay</span>
-                        <i class="fa-solid fa-chevron-down toggle-icon" id="replay-toggle-icon"></i>
+                        <i class="fa-solid fa-chevron-up toggle-icon" id="replay-toggle-icon"></i>
                     </div>
-                    <div class="card-body collapsed" id="replay-body">
+                    <div class="card-body" id="replay-body">
                         <div class="canvas-wrapper">
                             <canvas id="replay-canvas" width="376" height="180"></canvas>
                         </div>
@@ -191,9 +192,9 @@
                 <div class="collapsible-card">
                     <div class="card-header" onclick="toggleCollapsible('debate-body', 'debate-toggle-icon')">
                         <span><i class="fa-solid fa-scale-balanced text-yellow"></i> AI-Refereed Fan Debate Arena</span>
-                        <i class="fa-solid fa-chevron-down toggle-icon" id="debate-toggle-icon"></i>
+                        <i class="fa-solid fa-chevron-up toggle-icon" id="debate-toggle-icon"></i>
                     </div>
-                    <div class="card-body collapsed" id="debate-body">
+                    <div class="card-body" id="debate-body">
                         <p class="section-desc">Submit fan arguments to resolve head-to-head cricket stats debates fact-checked by the AI Umpire Referee!</p>
                         <div class="debate-arena-wrapper">
                             <div class="debate-side csk-side">
@@ -246,13 +247,14 @@
                         <!-- Messages dynamic load -->
                     </div>
                 </div>
+            </div>
 
-                <!-- CHAT INPUT -->
-                <div class="chat-input-bar">
-                    <input type="text" id="chat-message-input" placeholder="Join the fan banter..." onkeydown="handleChatSubmit(event)">
-                    <button id="send-btn" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
-                </div>
-            </section>
+            <!-- CHAT INPUT -->
+            <div class="chat-input-bar">
+                <input type="text" id="chat-message-input" placeholder="Join the fan banter..." onkeydown="handleChatSubmit(event)">
+                <button id="send-btn" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </section>
 
             <!-- RIGHT COLUMN: DUGGY CHATBOT & MATCH CONTROLLER -->
             <section class="layout-panel right-panel">
