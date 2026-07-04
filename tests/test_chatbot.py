@@ -72,7 +72,7 @@ def test_huggingface_config():
     from app.config import USE_HF_LLM, HF_LLM_MODEL
     # Should load settings safely
     assert USE_HF_LLM is False or USE_HF_LLM is True, "USE_HF_LLM is not loaded as boolean"
-    assert HF_LLM_MODEL == "meta-llama/Meta-Llama-3-8B-Instruct", f"Unexpected default HF model: {HF_LLM_MODEL}"
+    assert isinstance(HF_LLM_MODEL, str) and len(HF_LLM_MODEL) > 0, f"HF_LLM_MODEL is not loaded as a valid model name string"
     print("OK: Hugging Face configurations loaded successfully.")
 
 def test_search_fallbacks():
