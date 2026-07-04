@@ -26,6 +26,7 @@
     --glass-bg: rgba(21, 29, 25, 0.65);
     --glass-blur: blur(12px);
     --shadow-main: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    --radius-main: 10px;
 }
 
 * {
@@ -449,20 +450,22 @@ body {
 }
 
 .chat-viewport {
-    flex: 1;
-    min-height: 200px;
+    min-height: 280px;
+    height: 280px;
     position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    margin-top: 8px;
 }
 
 .center-content-scrollable {
     flex: 1;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    padding: 0;
+    display: block;
+    padding: 12px;
+    padding-bottom: 0;
 }
 
 .messages-list {
@@ -1505,8 +1508,9 @@ body {
 #replay-canvas {
     display: block;
     width: 100%;
-    max-width: 376px;
     height: 180px;
+    background: #0c1511;
+    cursor: grab;
 }
 
 .replay-controls {
