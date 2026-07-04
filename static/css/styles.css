@@ -252,6 +252,7 @@ body {
     overflow: hidden;
     padding: 16px;
     gap: 16px;
+    min-height: 0;
 }
 
 .layout-panel {
@@ -282,6 +283,7 @@ body {
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
 }
 
 .panel-title {
@@ -375,6 +377,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-height: 0;
 }
 
 .loading-placeholder {
@@ -500,6 +503,7 @@ body {
     display: block;
     padding: 12px;
     padding-bottom: 0;
+    min-height: 0;
 }
 
 .messages-list {
