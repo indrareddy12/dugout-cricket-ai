@@ -22,6 +22,9 @@
                 <span class="logo-icon"><i class="fa-solid fa-users-rays"></i></span>
                 <h1>DugOut</h1>
                 <span class="badge live-badge">LIVE</span>
+                <button class="join-audio-btn" id="join-audio-btn" onclick="toggleAudioDugoutPanel(true)">
+                    <i class="fa-solid fa-microphone"></i> Listen Live
+                </button>
             </div>
             <div class="scorecard-strip" id="scorecard-strip">
                 <div class="match-teams">
@@ -333,7 +336,7 @@
     </div>
 
     <!-- FEATURE 3: AUDIO DUGOUTS (Interactive Spaces) -->
-    <div class="audio-dugout-panel" id="audio-dugout-panel">
+    <div class="audio-dugout-panel hidden" id="audio-dugout-panel">
         <div class="audio-left">
             <div class="audio-host-avatar animate-mic-pulse">
                 <i class="fa-solid fa-microphone-lines text-green"></i>

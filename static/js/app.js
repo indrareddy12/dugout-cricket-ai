@@ -749,11 +749,17 @@ function toggleMuteAudio() {
 
 function toggleAudioDugoutPanel(visible) {
     const panel = document.getElementById("audio-dugout-panel");
+    const container = document.querySelector(".app-container");
+    const joinBtn = document.getElementById("join-audio-btn");
     if (panel) {
         if (visible) {
             panel.classList.remove("hidden");
+            if (container) container.classList.add("has-audio-space");
+            if (joinBtn) joinBtn.classList.add("hidden");
         } else {
             panel.classList.add("hidden");
+            if (container) container.classList.remove("has-audio-space");
+            if (joinBtn) joinBtn.classList.remove("hidden");
             // Reset state
             if (isSpeakRequested) {
                 toggleSpeakRequest();
